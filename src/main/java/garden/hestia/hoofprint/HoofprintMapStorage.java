@@ -102,8 +102,8 @@ public class HoofprintMapStorage {
 		LayerSummary.Raw[][] chunkBelowSummaries = new LayerSummary.Raw[34][34];
 
 		for (LayerConfiguration config : List.of(
-			new LayerConfiguration(chunkSummaries, getNativeTexture(rPos, regionTextures), (s, x, z) -> s == null ? null : s.toSingleLayer(null, maxY, world.getHeight())),
-			new LayerConfiguration(chunkBelowSummaries, getNativeTexture(rPos, caveRegionTextures), (s, x, z) -> this.belowLayerUsingCache(chunkSummaries, s, x, z, maxY, world.getHeight()))
+			new LayerConfiguration(chunkSummaries, getNativeTexture(rPos, regionTextures, "surface"), (s, x, z) -> s == null ? null : s.toSingleLayer(null, maxY, world.getHeight())),
+			new LayerConfiguration(chunkBelowSummaries, getNativeTexture(rPos, caveRegionTextures, "cave"), (s, x, z) -> this.belowLayerUsingCache(chunkSummaries, s, x, z, maxY, world.getHeight()))
 		)) {
 			for (int chunkX = 0; chunkX < 32; chunkX++) {
 				for (int chunkZ = 0; chunkZ < 32; chunkZ++) {
@@ -138,8 +138,13 @@ public class HoofprintMapStorage {
 
 	record LayerConfiguration(LayerSummary.Raw[][] cache, NativeImageBackedTexture texture, Function3<ChunkSummary, Integer, Integer, LayerSummary.Raw> flattener) {}
 
-	NativeImageBackedTexture getNativeTexture(ChunkPos rPos, Map<ChunkPos, Identifier> regionTextures) {
-		Identifier textureId = regionTextures.computeIfAbsent(rPos, r -> MinecraftClient.getInstance().getTextureManager().registerDynamicTexture(TEXTURE_PREFIX, new NativeImageBackedTexture(512, 512, true)));
+	NativeImageBackedTexture getNativeTexture(ChunkPos rPos, Map<ChunkPos, Identifier> regionTextures, String prefix) {
+		Identifier textureId = regionTextures.computeIfAbsent(rPos, r -> {
+			Identifier generatedId = Identifier.of(Hoofprint.ID, "map/" + prefix + "/" + regionTextures.size());
+			NativeImageBackedTexture texture = new NativeImageBackedTexture(() -> "Hoofprint Map " + prefix + " " + regionTextures.size(), 512, 512, true);
+			MinecraftClient.getInstance().getTextureManager().registerTexture(generatedId, texture);
+			return generatedId;
+		});
 		NativeImageBackedTexture terrainTexture = (NativeImageBackedTexture) MinecraftClient.getInstance().getTextureManager().getTexture(textureId);
 		NativeImage image = terrainTexture.getImage();
 		if (image == null) throw new IllegalStateException("[Hoofprint] WHO THREW OUT MY %s DYNAMIC TEXTURE".formatted(textureId));

@@ -13,8 +13,15 @@ import folk.sisby.surveyor.terrain.WorldTerrainSummary;
 import garden.hestia.hoofprint.util.ColorUtil;
 import net.minecraft.block.Block;
 import net.minecraft.block.MapColor;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.TooltipComponent;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.texture.Scaling;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.text.Text;
@@ -24,8 +31,10 @@ import net.minecraft.util.math.*;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.border.WorldBorder;
+import org.joml.*;
 import org.lwjgl.glfw.GLFW;
 
+import java.lang.Math;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +88,7 @@ public class HoofprintScreen extends Screen {
 			if (drawHeight <= 0 || drawWidth <= 0) continue;
 			context.getMatrices().push();
 			context.getMatrices().translate(worldXToRenderX(regionX1 + u), worldZToRenderY(regionZ1 + v), 0);
-			context.drawTexture(texture, 0, 0, drawWidth, drawHeight, u, v, drawWidth, drawHeight, 512, 512);
+			context.drawTexture(RenderLayer::getGuiTextured, texture, 0, 0, u, v, drawWidth, drawHeight, drawWidth, drawHeight, 512, 512);
 			context.getMatrices().pop();
 		}
 		if (Hoofprint.CONFIG.renderBorder && !hideDecorations) {
@@ -142,9 +151,8 @@ public class HoofprintScreen extends Screen {
 			context.getMatrices().translate(-2.5, -3.5, 0);
 			boolean friend = !SurveyorClient.getClientUuid().equals(uuid);
 			float tint = !player.online() ? 0.3f : mouseOver ? 0.8f : 1f;
-			RenderSystem.setShaderColor(tint * (friend ? 0.0f : 1.0f), tint, tint * (friend ? 0.3f : 1.0f), 1.0F);
-			context.drawTexture(Identifier.tryParse("textures/map/decorations/player.png"), 0, 0, 5, 7, 2, 0, 5, 7, 8, 8);
-			RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+			int color = ColorHelper.fromFloats(1.0F, tint * (friend ? 0.0f : 1.0f), tint, tint * (friend ? 0.3f : 1.0f));
+			context.drawTexture(RenderLayer::getGuiTextured, Identifier.tryParse("textures/map/decorations/player.png"), 0, 0, 2, 0, 5, 7, 5, 7, 8, 8, color);
 			context.getMatrices().pop();
 		}
 
@@ -179,7 +187,7 @@ public class HoofprintScreen extends Screen {
 					ItemStack stack = landmark.get(LandmarkComponentTypes.STACK);
 					context.drawItem(stack, -8, -8);
 				} else {
-					context.drawTexture(Identifier.tryParse("textures/map/decorations/white_banner.png"), -4, -8, 8, 8, 0, 0, 8, 8, 8, 8);
+					context.drawTexture(RenderLayer::getGuiTextured, Identifier.tryParse("textures/map/decorations/white_banner.png"), -4, -8, 0, 0, 8, 8, 8, 8, 8, 8);
 				}
 				RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 				if (hasShiftDown() && landmark.contains(LandmarkComponentTypes.NAME)) {
@@ -191,16 +199,16 @@ public class HoofprintScreen extends Screen {
 			}
 		}
 
+		// FIXME: Non smooth tooltip movement bc of 1.21.5 artifacting bug with old method.
 		context.getMatrices().push();
-		context.getMatrices().translate(hoveredScreenX, hoveredScreenY, 0);
 		if (hoveredPlayer != null && hoveredPlayer.username() != null) {
-			context.drawTooltip(this.textRenderer, Text.of(hoveredPlayer.username()), 0, 0);
+			context.drawTooltip(textRenderer, Text.of(hoveredPlayer.username()), (int)hoveredScreenX, (int)hoveredScreenY);
 		} else if (hoveredLandmark != null) {
 			List<Text> tooltipLines = new ArrayList<>();
 			if (hoveredLandmark.contains(LandmarkComponentTypes.NAME)) tooltipLines.add(hoveredLandmark.get(LandmarkComponentTypes.NAME));
 			if (hoveredLandmark.contains(LandmarkComponentTypes.LORE)) tooltipLines.addAll(hoveredLandmark.get(LandmarkComponentTypes.LORE).stream().map(t -> t.copy().formatted(Formatting.GRAY)).toList());
 			if (!tooltipLines.isEmpty()) {
-				context.drawTooltip(this.textRenderer, tooltipLines, 0, 0);
+				context.drawTooltip(this.textRenderer, tooltipLines, (int)hoveredScreenX, (int)hoveredScreenY);
 			}
 		} else if (inspectMode) {
 			List<Text> tooltipLines = new ArrayList<>();
@@ -213,7 +221,7 @@ public class HoofprintScreen extends Screen {
 			}))) {
 				tooltipLines.add(Text.of("x: %d, z: %d".formatted(hoveredWorldX, hoveredWorldZ)));
 			}
-			context.drawTooltip(this.textRenderer, tooltipLines, 0, 0);
+			context.drawTooltip(this.textRenderer, tooltipLines, (int)hoveredScreenX, (int)hoveredScreenY);
 		}
 		context.getMatrices().pop();
 	}
